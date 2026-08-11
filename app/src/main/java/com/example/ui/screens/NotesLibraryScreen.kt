@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
@@ -16,7 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -32,10 +31,15 @@ fun NotesLibraryScreen(
     searchQuery: String,
     onSearchChange: (String) -> Unit,
     onNoteClick: (NoteEntry) -> Unit,
-    onDeleteNote: (NoteEntry) -> Unit
+    onDeleteNote: (NoteEntry) -> Unit,
+    onAddManualNote: (subject: String, title: String, teacher: String, content: String, topics: List<String>, formulas: List<String>) -> Unit = { _, _, _, _, _, _ -> }
 ) {
     var selectedFilter by remember { mutableStateOf("ALL") }
-    val filters = listOf("ALL", "Data Structures", "Organic Chemistry", "Quantum Physics", "Incomplete")
+    var showManualNoteDialog by remember { mutableStateOf(false) }
+
+    val dynamicSubjects = remember(notes) {
+        listOf("ALL") + notes.map { it.subject }.distinct().filter { it.isNotBlank() }
+    }
 
     val filteredNotes = notes.filter { note ->
         val matchesQuery = note.title.contains(searchQuery, ignoreCase = true) ||
@@ -44,7 +48,6 @@ fun NotesLibraryScreen(
 
         val matchesFilter = when (selectedFilter) {
             "ALL" -> true
-            "Incomplete" -> note.confusionPoints.isNotEmpty()
             else -> note.subject.equals(selectedFilter, ignoreCase = true)
         }
 
@@ -55,8 +58,23 @@ fun NotesLibraryScreen(
         topBar = {
             TopAppBar(
                 title = { Text("MY NOTES LIBRARY", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                actions = {
+                    IconButton(onClick = { showManualNoteDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Note", tint = BrightCyan)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showManualNoteDialog = true },
+                containerColor = ElectricViolet,
+                contentColor = Color.White,
+                modifier = Modifier.testTag("add_note_fab")
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Note")
+            }
         },
         containerColor = DarkBackground
     ) { innerPadding ->
@@ -89,27 +107,29 @@ fun NotesLibraryScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Filter Chips
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 12.dp)
-            ) {
-                items(filters) { filter ->
-                    val isSelected = filter == selectedFilter
-                    Surface(
-                        color = if (isSelected) ElectricViolet else SurfaceDarkNavy,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .clickable { selectedFilter = filter }
-                            .testTag("filter_$filter")
-                    ) {
-                        Text(
-                            text = filter,
-                            color = if (isSelected) Color.White else Color.Gray,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
+            // Dynamic Filter Chips
+            if (dynamicSubjects.size > 1) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                ) {
+                    items(dynamicSubjects) { filter ->
+                        val isSelected = filter == selectedFilter
+                        Surface(
+                            color = if (isSelected) ElectricViolet else SurfaceDarkNavy,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .clickable { selectedFilter = filter }
+                                .testTag("filter_$filter")
+                        ) {
+                            Text(
+                                text = filter,
+                                color = if (isSelected) Color.White else Color.Gray,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -124,7 +144,27 @@ fun NotesLibraryScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = InactiveMuted, modifier = Modifier.size(56.dp))
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("No notes found for query", color = Color.Gray, fontSize = 14.sp)
+                        Text(
+                            text = if (notes.isEmpty()) "No saved notes yet" else "No notes found matching '$searchQuery'",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (notes.isEmpty()) "Start recording a live class or tap + to create your first note." else "Try searching for another keyword or filter.",
+                            color = Color.Gray,
+                            fontSize = 13.sp
+                        )
+                        if (notes.isEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = { showManualNoteDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = ElectricViolet)
+                            ) {
+                                Text("Add Your First Class Note", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             } else {
@@ -142,6 +182,18 @@ fun NotesLibraryScreen(
                 }
             }
         }
+    }
+
+    if (showManualNoteDialog) {
+        ManualNoteDialog(
+            defaultSubject = "General",
+            defaultTeacher = "Professor",
+            onDismiss = { showManualNoteDialog = false },
+            onConfirm = { subject, title, teacher, content, topics, formulas ->
+                onAddManualNote(subject, title, teacher, content, topics, formulas)
+                showManualNoteDialog = false
+            }
+        )
     }
 }
 
@@ -184,7 +236,7 @@ fun NoteCardItem(
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
-                            text = "${note.confidenceScore}% AI Match",
+                            text = "${note.confidenceScore}% Quality",
                             color = NeonGreen,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -209,7 +261,7 @@ fun NoteCardItem(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "📅 ${note.date} • ⏱️ ${note.durationSeconds / 60} mins • 📖 ${note.readTimeMinutes} min read",
+                text = "📅 ${note.date} • 👨‍🏫 ${note.teacher} • 📖 ${note.readTimeMinutes} min read",
                 color = Color.LightGray,
                 fontSize = 12.sp
             )
@@ -217,7 +269,7 @@ fun NoteCardItem(
             if (note.topics.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    note.topics.take(2).forEach { topic ->
+                    note.topics.take(3).forEach { topic ->
                         Surface(
                             color = SecondarySurfaceNavy,
                             shape = RoundedCornerShape(4.dp)

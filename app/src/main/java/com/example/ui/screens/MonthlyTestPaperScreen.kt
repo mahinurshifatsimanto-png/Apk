@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,8 +27,8 @@ fun MonthlyTestPaperScreen(
     isProcessing: Boolean,
     onGenerateTest: (subject: String) -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0 = Available Tests, 1 = Practice Simulator
-    var selectedSubject by remember { mutableStateOf("Data Structures & Chemistry") }
+    var selectedTab by remember { mutableStateOf(0) }
+    var inputSubject by remember { mutableStateOf("Physics") }
     var userAnswers by remember { mutableStateOf(mapOf<Int, Int>()) }
     var testSubmitted by remember { mutableStateOf(false) }
 
@@ -48,10 +47,37 @@ fun MonthlyTestPaperScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp)
         ) {
+            // Subject Input for Generator
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = SurfaceDarkNavy),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Select or Type Exam Subject:", color = BrightCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = inputSubject,
+                        onValueChange = { inputSubject = it },
+                        placeholder = { Text("Subject name (e.g. Mathematics)", color = Color.Gray) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = CoralRed,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Generate New Test Button
             Button(
-                onClick = { onGenerateTest(selectedSubject) },
-                enabled = !isProcessing,
+                onClick = { onGenerateTest(inputSubject) },
+                enabled = !isProcessing && inputSubject.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = CoralRed),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
@@ -62,11 +88,11 @@ fun MonthlyTestPaperScreen(
                 if (isProcessing) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Gemini Generating 30-Q Test...")
+                    Text("Generating 30-Q Test...")
                 } else {
                     Icon(Icons.Default.Assignment, contentDescription = null, tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("GENERATE NEW 30-QUESTION EXAM", fontWeight = FontWeight.Bold)
+                    Text("GENERATE 30-Q EXAM FOR $inputSubject", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
 
@@ -92,14 +118,30 @@ fun MonthlyTestPaperScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             if (selectedTab == 0) {
-                // Test Papers List
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    items(testPapers.size) { index ->
-                        val paper = testPapers[index]
-                        TestPaperCard(paper)
+                if (testPapers.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Assignment, contentDescription = null, tint = InactiveMuted, modifier = Modifier.size(56.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("No test papers generated yet", color = Color.White, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Tap button above to generate a 30-question exam from your notes.", color = Color.Gray, fontSize = 12.sp)
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(testPapers.size) { index ->
+                            val paper = testPapers[index]
+                            TestPaperCard(paper)
+                        }
                     }
                 }
             } else {
@@ -121,7 +163,7 @@ fun MonthlyTestPaperScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("30-Q EXAM SIMULATION", color = BrightCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("30-Q EXAM SIMULATION: $inputSubject", color = BrightCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Timer, contentDescription = null, tint = CoralRed, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -132,10 +174,10 @@ fun MonthlyTestPaperScreen(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         // Question 1
-                        Text("Q1. (MCQ) What is the primary state function discussed in energy state lectures?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Q1. (MCQ) What is the core fundamental principle in $inputSubject?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        val options = listOf("A. Enthalpy", "B. Kinetic Momentum", "C. Friction Coefficient", "D. Voltage Ratio")
+                        val options = listOf("A. Primary Standard Derivation", "B. Secondary Experimental Method", "C. Constant Friction Ratio", "D. Zero Voltage Point")
                         options.forEachIndexed { optIndex, optionText ->
                             val isSelected = userAnswers[1] == optIndex
                             Surface(
@@ -155,10 +197,10 @@ fun MonthlyTestPaperScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         // Question 2
-                        Text("Q2. (MCQ) Which boundary condition applies when t = 0 in RC circuit charging?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Q2. (MCQ) Which strategy is key to solving numerical problems in $inputSubject?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        val q2Options = listOf("A. V = V_max", "B. V = 0", "C. V = Infinity", "D. V = 0.5 V_max")
+                        val q2Options = listOf("A. Substituting known variables into standard equations", "B. Guessing random values", "C. Omitting units", "D. Ignoring boundary conditions")
                         q2Options.forEachIndexed { optIndex, optionText ->
                             val isSelected = userAnswers[2] == optIndex
                             Surface(
@@ -185,7 +227,7 @@ fun MonthlyTestPaperScreen(
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text("🎉 EXAM SUBMITTED! Score: 28/30", color = NeonGreen, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                    Text("Weak Areas Identified: Carbocation rearrangement & AVL LR rotation pivots", color = Color.LightGray, fontSize = 12.sp)
+                                    Text("Weak Areas Identified: Formula substitutions & boundary conditions in $inputSubject", color = Color.LightGray, fontSize = 12.sp)
                                 }
                             }
                         } else {

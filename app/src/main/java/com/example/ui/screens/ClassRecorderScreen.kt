@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -7,9 +11,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,10 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.data.RoutineEntry
 import com.example.ui.theme.*
 import com.example.utils.AudioRecorderManager
@@ -32,23 +40,37 @@ fun ClassRecorderScreen(
     recorderManager: AudioRecorderManager,
     routines: List<RoutineEntry>,
     isProcessingGemini: Boolean,
-    onStopAndProcess: (subject: String, teacher: String) -> Unit
+    onStopAndProcess: (subject: String, teacher: String) -> Unit,
+    onAddManualNote: (subject: String, title: String, teacher: String, content: String, topics: List<String>, formulas: List<String>) -> Unit = { _, _, _, _, _, _ -> }
 ) {
+    val context = LocalContext.current
+    var hasMicPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasMicPermission = isGranted
+    }
+
     val isRecording by recorderManager.isRecording.collectAsState()
     val isPaused by recorderManager.isPaused.collectAsState()
     val durationSeconds by recorderManager.recordingDurationSeconds.collectAsState()
     val amplitude by recorderManager.amplitude.collectAsState()
 
-    var selectedSubject by remember { mutableStateOf("Data Structures") }
-    var selectedTeacher by remember { mutableStateOf("Prof. Ahmed") }
+    var customSubject by remember { mutableStateOf("Physics") }
+    var customTeacher by remember { mutableStateOf("Professor") }
     var noteTagInput by remember { mutableStateOf("") }
     var taggedNotesList by remember { mutableStateOf(listOf<String>()) }
+    var showManualNoteDialog by remember { mutableStateOf(false) }
 
-    // Auto select from current routine if available
     LaunchedEffect(routines) {
-        if (routines.isNotEmpty()) {
-            selectedSubject = routines.first().subject
-            selectedTeacher = routines.first().teacher
+        if (routines.isNotEmpty() && customSubject == "Physics") {
+            customSubject = routines.first().subject
+            customTeacher = routines.first().teacher
         }
     }
 
@@ -56,7 +78,6 @@ fun ClassRecorderScreen(
     val seconds = durationSeconds % 60
     val formattedTimer = String.format("%02d:%02d", minutes, seconds)
 
-    // Waveform animation offset
     val infiniteTransition = rememberInfiniteTransition(label = "WaveformAnimation")
     val wavePhase by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -71,7 +92,7 @@ fun ClassRecorderScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("CLASS RECORDER", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                title = { Text("CLASS RECORDER & NOTES", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
             )
         },
@@ -84,41 +105,87 @@ fun ClassRecorderScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Subject Selection Card
+            if (!hasMicPermission) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = CoralRed.copy(alpha = 0.2f)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = CoralRed)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("MICROPHONE PERMISSION REQUIRED", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "To record live class lectures, please grant microphone access.",
+                            color = Color.LightGray,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                            colors = ButtonDefaults.buttonColors(containerColor = CoralRed)
+                        ) {
+                            Text("Grant Microphone Permission", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            // Subject Input Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceDarkNavy)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Select Subject for Recording", color = BrightCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Subject & Teacher Info", color = BrightCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(selectedSubject, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text("Prof. $selectedTeacher", color = Color.LightGray, fontSize = 13.sp)
-                        }
-                        Surface(
-                            color = ElectricViolet.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("AUTO-ROUTINE LINKED", color = ElectricViolet, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp))
-                        }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = customSubject,
+                            onValueChange = { customSubject = it },
+                            label = { Text("Subject Name", color = Color.Gray) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = ElectricViolet,
+                                unfocusedBorderColor = Color.Gray
+                            )
+                        )
+                        OutlinedTextField(
+                            value = customTeacher,
+                            onValueChange = { customTeacher = it },
+                            label = { Text("Teacher Name", color = Color.Gray) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = ElectricViolet,
+                                unfocusedBorderColor = Color.Gray
+                            )
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Waveform Canvas Visualizer
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
+                    .height(130.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(SecondarySurfaceNavy),
                 contentAlignment = Alignment.Center
@@ -154,18 +221,17 @@ fun ClassRecorderScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = ElectricViolet)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Gemini AI Processing Audio Notes...", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Processing Lecture Notes...", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Timer & File size
             Text(
                 text = formattedTimer,
                 color = Color.White,
-                fontSize = 36.sp,
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 2.sp
             )
@@ -175,21 +241,20 @@ fun ClassRecorderScreen(
                 fontSize = 12.sp
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Recording Controls
             Row(
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isRecording) {
-                    // Pause/Resume
                     IconButton(
                         onClick = {
                             if (isPaused) recorderManager.resumeRecording() else recorderManager.pauseRecording()
                         },
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(52.dp)
                             .clip(CircleShape)
                             .background(SurfaceDarkNavy)
                             .testTag("pause_resume_button")
@@ -201,38 +266,56 @@ fun ClassRecorderScreen(
                         )
                     }
 
-                    // Stop Button
                     IconButton(
                         onClick = {
-                            onStopAndProcess(selectedSubject, selectedTeacher)
+                            onStopAndProcess(customSubject, customTeacher)
                         },
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(64.dp)
                             .clip(CircleShape)
                             .background(CoralRed)
                             .testTag("stop_recording_button")
                     ) {
-                        Icon(Icons.Default.Stop, contentDescription = "Stop", tint = Color.White, modifier = Modifier.size(36.dp))
+                        Icon(Icons.Default.Stop, contentDescription = "Stop", tint = Color.White, modifier = Modifier.size(32.dp))
                     }
                 } else {
-                    // Start Recording Button
                     Button(
-                        onClick = { recorderManager.startRecording(selectedSubject) },
+                        onClick = {
+                            if (!hasMicPermission) {
+                                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            } else {
+                                recorderManager.startRecording(customSubject)
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = BrightCyan),
                         shape = CircleShape,
                         modifier = Modifier
-                            .height(64.dp)
-                            .fillMaxWidth(0.8f)
+                            .height(56.dp)
+                            .weight(1f)
                             .testTag("start_recording_button")
                     ) {
                         Icon(Icons.Default.Mic, contentDescription = "Mic", tint = Color.Black)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("START RECORDING", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("START RECORDING", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Button to write manual note without recording
+            OutlinedButton(
+                onClick = { showManualNoteDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ElectricViolet)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = ElectricViolet)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("OR CREATE WRITTEN LECTURE NOTE MANUALLY", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Tagging section
             Card(
@@ -241,13 +324,13 @@ fun ClassRecorderScreen(
                 colors = CardDefaults.cardColors(containerColor = SurfaceDarkNavy)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Tag Confusion / Bookmark Timestamp", color = ElectricViolet, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Tag Key Points / Bookmarks", color = ElectricViolet, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(
                             value = noteTagInput,
                             onValueChange = { noteTagInput = it },
-                            placeholder = { Text("e.g. Confused about formula step 3", color = Color.Gray) },
+                            placeholder = { Text("e.g. Teacher emphasized formula step 2", color = Color.Gray) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -281,4 +364,103 @@ fun ClassRecorderScreen(
             }
         }
     }
+
+    if (showManualNoteDialog) {
+        ManualNoteDialog(
+            defaultSubject = customSubject,
+            defaultTeacher = customTeacher,
+            onDismiss = { showManualNoteDialog = false },
+            onConfirm = { subject, title, teacher, content, topics, formulas ->
+                onAddManualNote(subject, title, teacher, content, topics, formulas)
+                showManualNoteDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun ManualNoteDialog(
+    defaultSubject: String,
+    defaultTeacher: String,
+    onDismiss: () -> Unit,
+    onConfirm: (subject: String, title: String, teacher: String, content: String, topics: List<String>, formulas: List<String>) -> Unit
+) {
+    var subject by remember { mutableStateOf(defaultSubject) }
+    var title by remember { mutableStateOf("") }
+    var teacher by remember { mutableStateOf(defaultTeacher) }
+    var content by remember { mutableStateOf("") }
+    var formula by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("CREATE WRITTEN LECTURE NOTE", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+        containerColor = SecondarySurfaceNavy,
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = subject,
+                    onValueChange = { subject = it },
+                    label = { Text("Subject", color = Color.Gray) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = BrightCyan)
+                )
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Note Title", color = Color.Gray) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = BrightCyan)
+                )
+                OutlinedTextField(
+                    value = teacher,
+                    onValueChange = { teacher = it },
+                    label = { Text("Teacher Name", color = Color.Gray) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = BrightCyan)
+                )
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    label = { Text("Lecture Content / Summary", color = Color.Gray) },
+                    minLines = 3,
+                    maxLines = 5,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = BrightCyan)
+                )
+                OutlinedTextField(
+                    value = formula,
+                    onValueChange = { formula = it },
+                    label = { Text("Key Formula (Optional)", color = Color.Gray) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = BrightCyan)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (subject.isNotBlank() && content.isNotBlank()) {
+                        onConfirm(
+                            subject,
+                            title.ifBlank { "$subject Lecture Note" },
+                            teacher.ifBlank { "Professor" },
+                            content,
+                            listOf(subject, "Class Lecture"),
+                            if (formula.isNotBlank()) listOf(formula) else emptyList()
+                        )
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = BrightCyan)
+            ) {
+                Text("Save Note & Generate PDF", color = Color.Black, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Color.Gray)
+            }
+        }
+    )
 }

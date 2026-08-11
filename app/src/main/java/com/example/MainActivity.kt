@@ -198,7 +198,10 @@ class MainActivity : ComponentActivity() {
                                 searchQuery = searchQuery,
                                 onSearchChange = { viewModel.setSearchQuery(it) },
                                 onNoteClick = { note -> viewModel.selectNoteForPdfView(note) },
-                                onDeleteNote = { note -> viewModel.deleteNote(note) }
+                                onDeleteNote = { note -> viewModel.deleteNote(note) },
+                                onAddManualNote = { subject, title, teacher, content, topics, formulas ->
+                                    viewModel.addManualNote(subject, title, teacher, content, topics, formulas)
+                                }
                             )
                         }
 
@@ -209,6 +212,10 @@ class MainActivity : ComponentActivity() {
                                 isProcessingGemini = isProcessingGemini,
                                 onStopAndProcess = { subject, teacher ->
                                     viewModel.stopAndProcessCurrentRecording(subject, teacher)
+                                    navController.navigate("notes")
+                                },
+                                onAddManualNote = { subject, title, teacher, content, topics, formulas ->
+                                    viewModel.addManualNote(subject, title, teacher, content, topics, formulas)
                                     navController.navigate("notes")
                                 }
                             )
