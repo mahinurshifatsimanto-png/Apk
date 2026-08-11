@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "52403619642",
-    "project_id": "chat-app-ef814",
-    "storage_bucket": "chat-app-ef814.firebasestorage.app"
+    "project_number": "1234567890",
+    "project_id": "my-college-notes-app",
+    "storage_bucket": "my-college-notes-app.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:52403619642:android:a55ee756a6be1942ec3203",
+        "mobilesdk_app_id": "1:1234567890:android:abcdef1234567890",
         "android_client_info": {
-          "package_name": "com.mychat.app"
+          "package_name": "com.aistudio.mycollegenotes.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAf7mnVX71JaMNxxbGS83XhrLvL6g9Va7Y"
+          "current_key": "AIzaSyDummyKeyForBuild"
         }
       ],
       "services": {

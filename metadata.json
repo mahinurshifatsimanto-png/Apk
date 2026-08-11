@@ -1,0 +1,6 @@
+{
+  "name": "MY COLLEGE NOTES",
+  "description": "Your AI-Powered Class Companion for recording lectures, auto-generating structured PDF study notes, routine scheduling, Gemini chat, progress tracking, and monthly tests.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,19 +1,18 @@
-# Build outputs
-build/
-.gradle/
-*.apk
-*.aab
-
-# Local config (don't commit SDK paths or keystores)
-local.properties
-*.jks
-*.keystore
-
-# IDE
-.idea/
 *.iml
+.gradle
+.kotlin
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
 .DS_Store
-
-# Gradle
-.gradle/
-captures/
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+.env
+debug.keystore
